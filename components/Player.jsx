@@ -1,12 +1,9 @@
 import { useState, useEffect } from "react";
-import { C } from "../data/constants";
 import { StemRow } from "./StemRow";
-import { useGospelAudio } from "../lib/useGospelAudio";
 
-export const Player = ({ song, onClose }) => {
+export const Player = ({ song, audioState, onClose }) => {
+  const { isPlaying, currentChordIdx, bpm, setBpm, play, pause, stop } = audioState;
   const chords = song.chords && song.chords.length > 0 ? song.chords : ["C", "F", "G", "Am"];
-  const genre = song.genre || 'Contemporary';
-  const { isPlaying, currentChordIdx, bpm, setBpm, play, pause, stop } = useGospelAudio(chords, genre);
 
   const [lyricIdx, setLyricIdx] = useState(0);
   const [isGeneratingStems, setIsGeneratingStems] = useState(false);
@@ -42,254 +39,255 @@ export const Player = ({ song, onClose }) => {
     setIsGeneratingStems(false);
   };
 
-  // Advance lyrics every time the chord changes
+  // Sync lyrics index when chord progression shifts
   useEffect(() => {
     if (isPlaying && song.lyrics && song.lyrics.length > 0) {
       setLyricIdx((i) => (i + 1) % song.lyrics.length);
     }
-  }, [currentChordIdx]);
+  }, [currentChordIdx, isPlaying]);
 
   const updateStem = (key, field, val) =>
     setStemState((s) => ({ ...s, [key]: { ...s[key], [field]: val } }));
 
   const handlePlayPause = () => (isPlaying ? pause() : play());
   const handleStop = () => { stop(); setLyricIdx(0); };
-  const handleClose = () => { stop(); onClose(); };
 
-  const stemColors = { lead: "#1DB954", soprano: "#F6AD55", alto: "#68D391", tenor: "#76E4F7" };
-  const stemLabels = { lead: "Lead Melody", soprano: "Soprano", alto: "Alto", tenor: "Tenor" };
+  const stemColors = { lead: "#8B5CF6", soprano: "#F59E0B", alto: "#10B981", tenor: "#06B6D4" };
+  const stemLabels = { lead: "Lead Vocals", soprano: "Soprano Harmony", alto: "Alto Harmony", tenor: "Tenor Harmony" };
 
   return (
-    <div style={{ background: C.bg, minHeight: "100%", display: "flex", flexDirection: "column" }}>
-
-      {/* ── Header ─────────────────────────────────────────── */}
-      <div style={{
-        display: "flex", alignItems: "center",
-        padding: "16px 20px", borderBottom: `1px solid ${C.border}`,
-      }}>
-        <button onClick={handleClose} style={{
-          background: "none", border: "none", color: C.muted,
-          cursor: "pointer", fontSize: 22, padding: 0, marginRight: 14,
-        }}>←</button>
-        <div>
-          <div style={{ color: C.text, fontWeight: 800, fontSize: 16 }}>{song.title}</div>
-          <div style={{ color: C.muted, fontSize: 12 }}>
-            {song.genre} · Key of {song.musicKey || chords[0]} · {song.lang}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ flex: 1, overflowY: "auto", padding: "20px 20px" }}>
-
-        {/* ── Now Playing Card ────────────────────────────── */}
-        <div style={{
-          background: `linear-gradient(135deg, ${C.greenDim}44, ${C.card})`,
-          border: `1px solid ${C.green}44`,
-          borderRadius: 16, padding: 20, marginBottom: 16, textAlign: "center",
-        }}>
-          <div style={{ fontSize: 42, marginBottom: 8 }}>🎶</div>
-          <div style={{ color: C.text, fontWeight: 700, fontSize: 17, marginBottom: 12 }}>
-            {song.title}
-          </div>
-
-          {/* Lyric Display */}
-          <div style={{
-            background: C.surface, borderRadius: 10, padding: "14px 16px",
-            margin: "0 0 16px", minHeight: 60,
-          }}>
-            {song.lyrics && song.lyrics[lyricIdx] ? (
-              <>
-                <div style={{ color: C.muted, fontSize: 11, marginBottom: 4 }}>
-                  [{song.lyrics[lyricIdx].part}]
-                </div>
-                <div style={{ color: C.green, fontWeight: 600, fontSize: 14, lineHeight: 1.5 }}>
-                  {song.lyrics[lyricIdx].line}
-                </div>
-              </>
-            ) : (
-              <div style={{ color: C.muted, fontSize: 13 }}>Press Play to begin...</div>
-            )}
-          </div>
-
-          {/* ── Chord Display ────────────────────────────── */}
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ color: C.muted, fontSize: 11, marginBottom: 8, letterSpacing: 1 }}>
-              CHORD PROGRESSION
-            </div>
-            <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
-              {chords.map((chord, i) => {
-                const isActive = isPlaying && currentChordIdx === i;
-                return (
-                  <div key={i} style={{
-                    width: 52, height: 52,
-                    borderRadius: 10,
-                    border: `2px solid ${isActive ? C.green : C.border}`,
-                    background: isActive
-                      ? `linear-gradient(135deg, ${C.green}33, ${C.green}11)`
-                      : C.surface,
-                    color: isActive ? C.green : C.muted,
-                    fontWeight: isActive ? 800 : 600,
-                    fontSize: chord.length > 2 ? 12 : 15,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    transition: "all 0.15s ease",
-                    boxShadow: isActive ? `0 0 14px ${C.green}55` : "none",
-                    transform: isActive ? "scale(1.1)" : "scale(1)",
-                  }}>
-                    {chord}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ── Playback Controls ────────────────────────── */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 16 }}>
-            {/* Stop */}
-            <button onClick={handleStop} style={{
-              width: 38, height: 38, borderRadius: "50%",
-              background: C.surface, border: `1px solid ${C.border}`,
-              color: C.muted, fontSize: 16, cursor: "pointer",
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-            }}>⏹</button>
-
-            {/* Play / Pause */}
-            <button onClick={handlePlayPause} style={{
-              width: 58, height: 58, borderRadius: "50%",
-              background: isPlaying
-                ? `linear-gradient(135deg, #E53E3E, #C53030)`
-                : `linear-gradient(135deg, ${C.green}, #17A845)`,
-              border: "none", fontSize: 22, cursor: "pointer",
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-              boxShadow: isPlaying ? "0 4px 20px #E53E3E55" : `0 4px 20px ${C.green}55`,
-              transition: "all 0.2s ease",
-            }}>
-              {isPlaying ? "⏸" : "▶"}
-            </button>
-
-            {/* BPM up */}
-            <button onClick={() => setBpm(Math.min(bpm + 4, 160))} style={{
-              width: 38, height: 38, borderRadius: "50%",
-              background: C.surface, border: `1px solid ${C.border}`,
-              color: C.muted, fontSize: 14, cursor: "pointer",
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-            }}>+</button>
-          </div>
-
-          {/* ── BPM Slider ───────────────────────────────── */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ color: C.muted, fontSize: 11, whiteSpace: "nowrap" }}>BPM</span>
-            <input
-              type="range" min={50} max={160} value={bpm}
-              onChange={(e) => setBpm(Number(e.target.value))}
-              style={{ flex: 1, accentColor: C.green }}
-            />
-            <span style={{
-              color: C.green, fontWeight: 700, fontSize: 13,
-              minWidth: 32, textAlign: "right",
-            }}>{bpm}</span>
-          </div>
-        </div>
-
-        {/* ── Scripture Badge ──────────────────────────────── */}
-        {song.scripture && (
-          <div style={{
-            background: C.card, borderRadius: 10,
-            border: `1px solid ${C.border}`,
-            padding: "12px 16px", display: "flex", alignItems: "center",
-            gap: 10, marginBottom: 16,
-          }}>
-            <span style={{ fontSize: 18 }}>📖</span>
-            <div>
-              <div style={{ color: C.green, fontWeight: 700, fontSize: 12 }}>SCRIPTURE ANCHOR</div>
-              <div style={{ color: C.muted, fontSize: 13 }}>{song.scripture}</div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Choir Desk / Stem Mixer ──────────────────────── */}
-        <div style={{
-          background: C.surface, borderRadius: 14,
-          border: `1px solid ${C.border}`, padding: 16, marginBottom: 16,
-        }}>
-          <div style={{
-            color: C.green, fontWeight: 700, fontSize: 13,
-            letterSpacing: 1, marginBottom: 12,
-          }}>🎼 CHOIR DESK — STEM MIXER</div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {Object.entries(stemState).map(([key, s]) => (
-              <StemRow
-                key={key}
-                label={stemLabels[key]}
-                color={stemColors[key]}
-                vol={s.vol}
-                setVol={(v) => updateStem(key, "vol", v)}
-                solo={s.solo}
-                setSolo={(v) => updateStem(key, "solo", v)}
-                muted={s.muted}
-                setMuted={(v) => updateStem(key, "muted", v)}
-                url={stemUrls ? stemUrls[key] : null}
-                isPlaying={isPlaying}
-              />
-            ))}
-          </div>
-
-          {/* ACE-Step Cloud Button */}
-          <button
-            style={{
-              width: "100%", marginTop: 16, padding: "12px",
-              borderRadius: 10, border: `1px solid ${C.green}55`,
-              background: isGeneratingStems ? C.surface : `linear-gradient(135deg, #1DB95422, transparent)`,
-              color: isGeneratingStems ? C.muted : C.green, fontWeight: 700, fontSize: 13,
-              cursor: isGeneratingStems ? "wait" : "pointer", fontFamily: "inherit",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              gap: 8, transition: "all 0.2s ease",
-            }}
-            onClick={generateCloudStems}
-            disabled={isGeneratingStems || stemUrls}
+    <div className="min-h-screen bg-background text-on-surface flex flex-col p-4 md:p-8">
+      {/* Header */}
+      <header className="max-w-6xl mx-auto w-full flex items-center justify-between border-b border-white/10 pb-6 mb-8">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={onClose} 
+            className="p-3 bg-white/5 rounded-full hover:bg-white/10 active:scale-95 transition-all text-on-surface-variant hover:text-white"
           >
-            {isGeneratingStems ? (
-              <>
-                <span style={{ animation: "spin 2s linear infinite" }}>⏳</span> Communicating with Cloud GPU...
-              </>
-            ) : stemUrls ? (
-              <>
-                <span>✅</span> Cloud Stems Downloaded
-              </>
-            ) : (
-              <>
-                <span>☁️</span> Generate Real Choir Stems (ACE-Step Cloud)
-              </>
-            )}
+            <span className="material-symbols-outlined">arrow_back</span>
           </button>
+          <div>
+            <span className="px-3 py-1 rounded-full bg-primary/20 text-primary border border-primary/30 text-[10px] font-bold uppercase tracking-widest">
+              Choir Desk & Rehearsal
+            </span>
+            <h1 className="font-headline-lg text-2xl md:text-3xl text-white font-bold mt-1">{song.title}</h1>
+          </div>
+        </div>
+        
+        <div className="text-right hidden sm:block">
+          <p className="text-sm font-bold text-primary">{song.genre}</p>
+          <p className="text-xs text-on-surface-variant">Key of {song.musicKey || chords[0]} · {song.lang}</p>
+        </div>
+      </header>
+
+      {/* Main Grid */}
+      <div className="max-w-6xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1">
+        {/* Left Column: Lyrics & Performance */}
+        <div className="lg:col-span-7 flex flex-col space-y-6">
+          {/* Active Screen Card */}
+          <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group border border-white/10 flex flex-col justify-between min-h-[320px]">
+            {/* Background blur decorative circles */}
+            <div className="absolute -right-24 -top-24 w-64 h-64 bg-primary/10 blur-[100px] rounded-full group-hover:bg-primary/15 transition-all duration-700"></div>
+            
+            <div className="flex items-center justify-between border-b border-white/5 pb-4 z-10">
+              <span className="font-label-sm text-xs text-primary uppercase tracking-widest">Live Prompt Sync</span>
+              <div className="flex items-center gap-2 bg-surface-container-high px-3 py-1 rounded-full border border-white/5">
+                <span className={`w-2.5 h-2.5 rounded-full ${isPlaying ? "bg-secondary animate-pulse" : "bg-outline"}`}></span>
+                <span className="text-xs text-on-surface-variant font-bold">{isPlaying ? "Active Playback" : "Idle"}</span>
+              </div>
+            </div>
+
+            {/* Lyric Prompter Box */}
+            <div className="flex-1 flex flex-col justify-center py-8 z-10">
+              {song.lyrics && song.lyrics[lyricIdx] ? (
+                <div className="text-center space-y-3">
+                  <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-bold text-primary uppercase tracking-wider">
+                    {song.lyrics[lyricIdx].part}
+                  </span>
+                  <p className="text-xl md:text-2xl font-bold text-white leading-relaxed px-4 md:px-8">
+                    "{song.lyrics[lyricIdx].line}"
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <p className="text-on-surface-variant italic">Press play below to start rehearsal monitor</p>
+                </div>
+              )}
+            </div>
+
+            {/* Chords Track */}
+            <div className="border-t border-white/5 pt-6 z-10">
+              <p className="text-center font-label-sm text-xs text-on-surface-variant uppercase tracking-widest mb-4">
+                Chord Arranger
+              </p>
+              <div className="flex justify-center gap-3">
+                {chords.map((chord, i) => {
+                  const isActive = isPlaying && currentChordIdx === i;
+                  return (
+                    <div 
+                      key={i} 
+                      className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center transition-all duration-300 font-mono text-sm ${
+                        isActive 
+                          ? "bg-primary/20 border-primary text-primary shadow-[0_0_20px_rgba(208,188,255,0.25)] scale-110 font-bold"
+                          : "bg-surface-container border-white/5 text-on-surface-variant"
+                      }`}
+                    >
+                      {chord}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Performance Toolbar */}
+          <div className="glass-panel p-6 rounded-3xl border border-white/10 flex flex-col md:flex-row items-center gap-6 justify-between">
+            {/* Playback Button Group */}
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={handleStop} 
+                className="p-4 bg-white/5 hover:bg-white/10 rounded-2xl active:scale-95 transition-all text-on-surface-variant hover:text-white"
+                title="Stop Rehearsal"
+              >
+                <span className="material-symbols-outlined">stop</span>
+              </button>
+              
+              <button 
+                onClick={handlePlayPause} 
+                className={`w-16 h-16 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl ${
+                  isPlaying 
+                    ? "bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-red-500/20" 
+                    : "bg-gradient-to-r from-primary to-secondary text-background shadow-primary/25"
+                }`}
+              >
+                <span className="material-symbols-outlined text-3xl font-bold" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  {isPlaying ? "pause" : "play_arrow"}
+                </span>
+              </button>
+
+              <div className="text-left ml-2">
+                <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Playback</p>
+                <p className="text-sm text-white font-bold">{isPlaying ? "Rehearsal Live" : "Stopped"}</p>
+              </div>
+            </div>
+
+            {/* BPM Adjuster */}
+            <div className="flex-1 max-w-xs w-full flex items-center gap-4">
+              <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">BPM</span>
+              <input
+                type="range" 
+                min={50} 
+                max={160} 
+                value={bpm}
+                onChange={(e) => setBpm(Number(e.target.value))}
+                className="flex-grow accent-primary h-1 bg-white/10 rounded-full"
+              />
+              <span className="text-sm font-mono font-bold text-primary w-12 text-right">{bpm}</span>
+            </div>
+          </div>
+
+          {/* Scripture Verification Card */}
+          {song.scripture && (
+            <div className="glass-panel p-5 rounded-3xl border border-white/5 flex items-center gap-4 bg-surface-container-low">
+              <div className="w-12 h-12 rounded-2xl bg-secondary/15 border border-secondary/20 flex items-center justify-center text-secondary">
+                <span className="material-symbols-outlined text-xl">menu_book</span>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Scriptural Reference Anchor</p>
+                <p className="text-sm font-bold text-white mt-0.5">{song.scripture}</p>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* ── Full Lyrics ──────────────────────────────────── */}
-        {song.lyrics && song.lyrics.length > 0 && (
-          <div style={{
-            background: C.card, borderRadius: 14,
-            border: `1px solid ${C.border}`, padding: 16, marginBottom: 20,
-          }}>
-            <div style={{
-              color: C.green, fontWeight: 700, fontSize: 13,
-              letterSpacing: 1, marginBottom: 12,
-            }}>📝 FULL LYRICS</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {song.lyrics.map((l, i) => (
-                <div key={i} style={{
-                  padding: "10px 12px", borderRadius: 8,
-                  background: lyricIdx === i ? `${C.green}18` : "transparent",
-                  border: `1px solid ${lyricIdx === i ? C.green + "44" : "transparent"}`,
-                  transition: "all 0.2s ease",
-                }}>
-                  <div style={{ color: C.muted, fontSize: 10, marginBottom: 2 }}>[{l.part}]</div>
-                  <div style={{ color: C.text, fontSize: 13, lineHeight: 1.5 }}>{l.line}</div>
-                </div>
+        {/* Right Column: Choir Desk Mixer & Full Lyrics */}
+        <div className="lg:col-span-5 flex flex-col space-y-6">
+          {/* Stem Mixer */}
+          <div className="glass-panel p-6 rounded-3xl border border-white/10">
+            <h3 className="font-headline-md text-lg text-white font-bold mb-4 flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">equalizer</span>
+              Choir Desk Mixer
+            </h3>
+
+            <div className="space-y-3">
+              {Object.entries(stemState).map(([key, s]) => (
+                <StemRow
+                  key={key}
+                  label={stemLabels[key]}
+                  color={stemColors[key]}
+                  vol={s.vol}
+                  setVol={(v) => updateStem(key, "vol", v)}
+                  solo={s.solo}
+                  setSolo={(v) => updateStem(key, "solo", v)}
+                  muted={s.muted}
+                  setMuted={(v) => updateStem(key, "muted", v)}
+                  url={stemUrls ? stemUrls[key] : null}
+                  isPlaying={isPlaying}
+                />
               ))}
             </div>
-          </div>
-        )}
 
+            {/* Cloud GPU Trigger */}
+            <button
+              onClick={generateCloudStems}
+              disabled={isGeneratingStems || stemUrls}
+              className={`w-full mt-6 py-4 rounded-2xl font-bold text-sm border flex items-center justify-center gap-2 active:scale-95 transition-all ${
+                isGeneratingStems 
+                  ? "bg-surface-container border-white/10 text-on-surface-variant cursor-wait" 
+                  : stemUrls 
+                    ? "bg-secondary/15 border-secondary/30 text-secondary" 
+                    : "bg-gradient-to-r from-primary/10 to-secondary/5 border-primary/30 text-primary hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5"
+              }`}
+            >
+              {isGeneratingStems ? (
+                <>
+                  <span className="animate-spin material-symbols-outlined text-base">progress_activity</span>
+                  Synthesizing SAT Stems (ACE-Step)...
+                </>
+              ) : stemUrls ? (
+                <>
+                  <span className="material-symbols-outlined text-base">check_circle</span>
+                  SAT Harmonies Generated
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-base">cloud_sync</span>
+                  Synthesize Choir SAT Harmonies
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Full Lyrics List */}
+          {song.lyrics && song.lyrics.length > 0 && (
+            <div className="glass-panel p-6 rounded-3xl border border-white/10 flex-grow max-h-[350px] flex flex-col">
+              <h3 className="font-headline-md text-base text-white font-bold mb-4 flex items-center gap-2 shrink-0">
+                <span className="material-symbols-outlined text-primary">subject</span>
+                Full Lyric Sheets
+              </h3>
+              
+              <div className="space-y-3 overflow-y-auto pr-1 custom-scrollbar flex-1">
+                {song.lyrics.map((l, i) => (
+                  <div 
+                    key={i} 
+                    className={`p-3 rounded-2xl border transition-all ${
+                      lyricIdx === i 
+                        ? "bg-primary/15 border-primary/30" 
+                        : "bg-surface-container border-transparent hover:border-white/5"
+                    }`}
+                  >
+                    <span className="text-[9px] font-bold text-primary uppercase tracking-widest block mb-0.5">
+                      {l.part}
+                    </span>
+                    <p className="text-xs text-white leading-relaxed">
+                      {l.line}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { C } from "../data/constants";
 
 export const GeneratingModal = ({ visible }) => {
   const [dots, setDots] = useState(0);
@@ -8,48 +7,22 @@ export const GeneratingModal = ({ visible }) => {
     const t = setInterval(() => setDots((d) => (d + 1) % 4), 400);
     return () => clearInterval(t);
   }, [visible]);
+
   if (!visible) return null;
+
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(13,17,23,.92)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 100,
-        gap: 20,
-      }}
-    >
-      <div style={{ fontSize: 48 }}>🎵</div>
-      <div style={{ color: C.green, fontWeight: 800, fontSize: 22 }}>
+    <div className="fixed inset-0 bg-background/90 backdrop-blur-md flex flex-col items-center justify-center z-[150] gap-5">
+      <div className="text-5xl animate-bounce">🥁</div>
+      <div className="text-white font-headline-md text-xl md:text-2xl font-bold mt-2">
         Arranging your harmonies{".".repeat(dots)}
       </div>
-      <div style={{ color: C.muted, fontSize: 14 }}>
-        Scripture verified · SAT stems generating
+      <p className="text-xs text-on-surface-variant max-w-xs text-center leading-relaxed">
+        Biblically grounded lyrics & multipart SAT harmonies generating using Llama-3.3
+      </p>
+      
+      <div className="w-56 h-1 bg-white/10 rounded-full overflow-hidden mt-4 relative">
+        <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary to-secondary w-2/3 rounded-full animate-[pulse_1.5s_infinite]"></div>
       </div>
-      <div
-        style={{
-          width: 220,
-          height: 4,
-          background: C.border,
-          borderRadius: 2,
-          overflow: "hidden",
-          marginTop: 8,
-        }}
-      >
-        <div
-          style={{
-            height: "100%",
-            background: C.green,
-            animation: "loadbar 2s ease-in-out infinite",
-            borderRadius: 2,
-          }}
-        />
-      </div>
-      <style>{`@keyframes loadbar{0%{width:0%}60%{width:85%}100%{width:100%}}`}</style>
     </div>
   );
 };

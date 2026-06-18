@@ -1,10 +1,9 @@
 import { useRef, useEffect } from "react";
-import { C } from "../data/constants";
 
 export const StemRow = ({ label, color, vol, setVol, solo, setSolo, muted, setMuted, url, isPlaying }) => {
   const audioRef = useRef(null);
 
-  // 1. Initialize audio object when URL is received
+  // Sync playback with URL load
   useEffect(() => {
     if (url && !audioRef.current) {
       audioRef.current = new Audio(url);
@@ -12,18 +11,18 @@ export const StemRow = ({ label, color, vol, setVol, solo, setSolo, muted, setMu
     }
   }, [url]);
 
-  // 2. Sync playback with the global Play/Pause button
+  // Sync global playback
   useEffect(() => {
     if (!audioRef.current) return;
     if (isPlaying) {
-      audioRef.current.play().catch((e) => console.log("Audio play error (mock missing file):", e));
+      audioRef.current.play().catch((e) => console.log("Audio play error:", e));
     } else {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
     }
   }, [isPlaying]);
 
-  // 3. Sync volume and mute state
+  // Sync volume and mute
   useEffect(() => {
     if (!audioRef.current) return;
     audioRef.current.volume = muted ? 0 : (vol / 100);
@@ -31,54 +30,62 @@ export const StemRow = ({ label, color, vol, setVol, solo, setSolo, muted, setMu
 
   return (
     <div
-      style={{
-        display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
-        background: url ? `linear-gradient(90deg, ${color}22, ${C.card})` : C.card,
-        borderRadius: 10, border: `1px solid ${url ? color : C.border}`,
-        transition: "all 0.3s ease"
-      }}
+      className={`flex items-center gap-3 p-3.5 rounded-2xl border transition-all duration-300 ${
+        url 
+          ? "bg-gradient-to-r from-primary/5 to-surface-container" 
+          : "bg-surface-container border-white/5"
+      }`}
+      style={{ borderColor: url ? `${color}40` : "rgba(255, 255, 255, 0.05)" }}
     >
+      {/* Icon/Letter */}
       <div
-        style={{
-          width: 32, height: 32, borderRadius: "50%", background: color,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontWeight: 800, fontSize: 13, color: "#000", flexShrink: 0,
-        }}
+        className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 select-none text-background shadow-md"
+        style={{ backgroundColor: color }}
       >
         {label[0]}
       </div>
-      <div style={{ flex: 1, fontSize: 13, color: C.text, fontWeight: 600 }}>
-        {label}
+
+      {/* Label */}
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-bold text-white truncate">{label}</p>
+        <p className="text-[10px] text-on-surface-variant uppercase tracking-wider mt-0.5">
+          {url ? "Synthesizer Ready" : "Local Synthesis"}
+        </p>
       </div>
+
+      {/* Volume Slider */}
       <input
-        type="range" min={0} max={100} value={vol}
+        type="range"
+        min={0}
+        max={100}
+        value={vol}
         onChange={(e) => setVol(+e.target.value)}
-        style={{ width: 80, accentColor: C.green }}
+        className="w-20 accent-primary h-1 bg-white/10 rounded-full"
       />
-      <button
-        onClick={() => setSolo(!solo)}
-        style={{
-          padding: "4px 10px", borderRadius: 6,
-          border: `1px solid ${solo ? C.green : C.border}`,
-          background: solo ? C.green : "transparent",
-          color: solo ? "#000" : C.muted,
-          fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-        }}
-      >
-        SOLO
-      </button>
-      <button
-        onClick={() => setMuted(!muted)}
-        style={{
-          padding: "4px 10px", borderRadius: 6,
-          border: `1px solid ${muted ? "#E53E3E" : C.border}`,
-          background: muted ? "#E53E3E" : "transparent",
-          color: muted ? "#fff" : C.muted,
-          fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-        }}
-      >
-        MUTE
-      </button>
+
+      {/* Buttons */}
+      <div className="flex gap-1.5">
+        <button
+          onClick={() => setSolo(!solo)}
+          className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all active:scale-95 ${
+            solo
+              ? "bg-primary text-background border-primary shadow-[0_0_12px_rgba(208,188,255,0.3)]"
+              : "bg-white/5 text-on-surface-variant border-white/5 hover:border-white/20"
+          }`}
+        >
+          SOLO
+        </button>
+        <button
+          onClick={() => setMuted(!muted)}
+          className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all active:scale-95 ${
+            muted
+              ? "bg-red-500/20 text-red-500 border-red-500/30"
+              : "bg-white/5 text-on-surface-variant border-white/5 hover:border-white/20"
+          }`}
+        >
+          MUTE
+        </button>
+      </div>
     </div>
   );
 };
