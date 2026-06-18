@@ -1,87 +1,76 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Sora:wght@600;700;800&display=swap');
-
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined');
+
 
 @theme {
-  --color-surface-variant: #273647;
-  --color-outline-variant: #494454;
-  --color-background: #051424;
-  --color-on-surface: #d4e4fa;
-  --color-surface-container-highest: #273647;
-  --color-surface-dim: #051424;
-  --color-on-primary-container: #340080;
-  --color-on-error-container: #ffdad6;
-  --color-on-primary-fixed: #23005c;
-  --color-on-secondary-container: #00424e;
-  --color-outline: #958ea0;
-  --color-primary-fixed-dim: #d0bcff;
-  --color-on-surface-variant: #cbc3d7;
-  --color-inverse-on-surface: #233143;
-  --color-surface-container-high: #1c2b3c;
-  --color-on-secondary-fixed-variant: #004e5c;
-  --color-surface-container-lowest: #010f1f;
-  --color-on-tertiary-fixed-variant: #673d00;
-  --color-surface-tint: #d0bcff;
-  --color-on-secondary: #003640;
-  --color-tertiary-container: #ca801e;
-  --color-on-primary: #3c0091;
-  --color-secondary-container: #03b5d3;
-  --color-surface-container: #122131;
-  --color-on-tertiary: #482900;
-  --color-primary-fixed: #e9ddff;
-  --color-primary-container: #a078ff;
-  --color-on-background: #d4e4fa;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", sans-serif;
+
+  --color-suno-black: #0a0a0a;
+  --color-suno-gray-900: #121212;
+  --color-suno-gray-800: #1e1e1e;
+  --color-suno-gray-700: #2a2a2a;
+  --color-suno-gray-600: #3a3a3a;
+  --color-suno-accent: #3b82f6;
+
+  /* Legacy mappings to support existing layouts */
+  --color-background: #0a0a0a;
+  --color-surface-dim: #0a0a0a;
+  --color-surface: #121212;
+  --color-surface-container: #121212;
+  --color-surface-container-low: #0c0c0c;
+  --color-surface-container-lowest: #050505;
+  --color-surface-container-high: #1e1e1e;
+  --color-surface-container-highest: #2a2a2a;
+  --color-outline-variant: #2a2a2a;
+  --color-outline: #3a3a3a;
+  --color-on-surface: #ffffff;
+  --color-on-background: #ffffff;
+  --color-on-surface-variant: #9ca3af;
   
-  --color-primary: #8b5cf6;
-  --color-secondary: #4cd7f6;
-  --color-surface: #051424;
-  --color-on-tertiary-container: #3f2300;
-  --color-inverse-surface: #d4e4fa;
-  --color-tertiary: #ffb869;
-  --color-surface-bright: #2c3a4c;
-  --color-on-error: #690005;
-  --color-tertiary-fixed: #ffdcbb;
-  --color-secondary-fixed-dim: #4cd7f6;
-  --color-secondary-fixed: #acedff;
-  --color-tertiary-fixed-dim: #ffb869;
-  --color-error-container: #93000a;
-  --color-on-tertiary-fixed: #2c1700;
+  --color-primary: #3b82f6;
+  --color-secondary: #00f0ff;
+  --color-on-primary-fixed: #ffffff;
+  --color-primary-fixed-dim: #3b82f6;
+  
+  --font-body-lg: "Inter", sans-serif;
+  --font-headline-md: "Outfit", sans-serif;
+  --font-headline-lg-mobile: "Outfit", sans-serif;
+  --font-headline-lg: "Outfit", sans-serif;
+  --font-headline-xl: "Outfit", sans-serif;
+  --font-body-md: "Inter", sans-serif;
+  --font-label-sm: "Inter", sans-serif;
 
-  --font-body-lg: Inter, sans-serif;
-  --font-headline-md: Sora, sans-serif;
-  --font-headline-lg-mobile: Sora, sans-serif;
-  --font-headline-lg: Sora, sans-serif;
-  --font-headline-xl: Sora, sans-serif;
-  --font-body-md: Inter, sans-serif;
-  --font-label-sm: Inter, sans-serif;
-
-  --border-radius-DEFAULT: 0.25rem;
-  --border-radius-lg: 0.5rem;
-  --border-radius-xl: 0.75rem;
+  --border-radius-DEFAULT: 0.75rem;
+  --border-radius-lg: 0.75rem;
+  --border-radius-xl: 1rem;
+  --border-radius-2xl: 1.5rem;
+  --border-radius-3xl: 2rem;
   --border-radius-full: 9999px;
+}
 
-  --spacing-gutter: 24px;
-  --spacing-margin-mobile: 16px;
-  --spacing-container-max: 1440px;
-  --spacing-base: 4px;
-  --spacing-margin-desktop: 48px;
+@layer base {
+  body {
+    @apply bg-suno-black text-white antialiased font-sans;
+  }
 }
 
 .material-symbols-outlined {
     vertical-align: middle;
 }
 .glass-card {
-    background: rgba(26, 26, 26, 0.7);
+    background: rgba(18, 18, 18, 0.7);
     backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.04);
 }
 .glass-panel {
-    background: rgba(5, 20, 36, 0.7);
+    background: rgba(18, 18, 18, 0.75);
     backdrop-filter: blur(40px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.04);
 }
 .glow-hover:hover {
-    box-shadow: 0 0 20px rgba(208, 188, 255, 0.15);
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
 }
 .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
@@ -90,22 +79,22 @@
     background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #273647;
+    background: #1e1e1e;
     border-radius: 10px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #d0bcff;
+    background: #3b82f6;
 }
 @keyframes breathe {
-    0%, 100% { border-color: rgba(208, 188, 255, 0.2); }
-    50% { border-color: rgba(76, 215, 246, 0.5); }
+    0%, 100% { border-color: rgba(59, 130, 246, 0.2); }
+    50% { border-color: rgba(0, 240, 255, 0.5); }
 }
 .anim-breathe {
     animation: breathe 4s ease-in-out infinite;
 }
 @keyframes pulse-border {
-    0%, 100% { border-color: #d0bcff; }
-    50% { border-color: #4cd7f6; }
+    0%, 100% { border-color: #3b82f6; }
+    50% { border-color: #00f0ff; }
 }
 .anim-generating {
     animation: pulse-border 2s infinite ease-in-out;
