@@ -9,12 +9,38 @@ export const Player = ({ song, onClose }) => {
   const { isPlaying, currentChordIdx, bpm, setBpm, play, pause, stop } = useGospelAudio(chords, genre);
 
   const [lyricIdx, setLyricIdx] = useState(0);
+  const [isGeneratingStems, setIsGeneratingStems] = useState(false);
+  const [stemUrls, setStemUrls] = useState(null);
+
   const [stemState, setStemState] = useState({
     lead:    { vol: 90, solo: false, muted: false },
     soprano: { vol: 85, solo: false, muted: false },
     alto:    { vol: 80, solo: false, muted: false },
     tenor:   { vol: 75, solo: false, muted: false },
   });
+
+  const generateCloudStems = async () => {
+    setIsGeneratingStems(true);
+    try {
+      const res = await fetch("/api/stems", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lyrics: song.lyrics,
+          genre: song.genre,
+          musicKey: song.musicKey || chords[0]
+        }),
+      });
+      const data = await res.json();
+      if (data.stems) {
+        setStemUrls(data.stems);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Failed to reach Cloud GPU Server.");
+    }
+    setIsGeneratingStems(false);
+  };
 
   // Advance lyrics every time the chord changes
   useEffect(() => {
@@ -202,24 +228,39 @@ export const Player = ({ song, onClose }) => {
                 setSolo={(v) => updateStem(key, "solo", v)}
                 muted={s.muted}
                 setMuted={(v) => updateStem(key, "muted", v)}
+                url={stemUrls ? stemUrls[key] : null}
+                isPlaying={isPlaying}
               />
             ))}
           </div>
 
-          {/* ACE-Step Button */}
+          {/* ACE-Step Cloud Button */}
           <button
             style={{
               width: "100%", marginTop: 16, padding: "12px",
               borderRadius: 10, border: `1px solid ${C.green}55`,
-              background: `linear-gradient(135deg, #1DB95422, transparent)`,
-              color: C.green, fontWeight: 700, fontSize: 13,
-              cursor: "pointer", fontFamily: "inherit",
+              background: isGeneratingStems ? C.surface : `linear-gradient(135deg, #1DB95422, transparent)`,
+              color: isGeneratingStems ? C.muted : C.green, fontWeight: 700, fontSize: 13,
+              cursor: isGeneratingStems ? "wait" : "pointer", fontFamily: "inherit",
               display: "flex", alignItems: "center", justifyContent: "center",
               gap: 8, transition: "all 0.2s ease",
             }}
-            onClick={() => alert("🎙️ ACE-Step will generate real Soprano, Alto & Tenor voice stems.\n\nThis requires GPU processing and is available in Phase 2 of SelahAI.")}
+            onClick={generateCloudStems}
+            disabled={isGeneratingStems || stemUrls}
           >
-            <span>🎙️</span> Generate Real Choir Stems (ACE-Step)
+            {isGeneratingStems ? (
+              <>
+                <span style={{ animation: "spin 2s linear infinite" }}>⏳</span> Communicating with Cloud GPU...
+              </>
+            ) : stemUrls ? (
+              <>
+                <span>✅</span> Cloud Stems Downloaded
+              </>
+            ) : (
+              <>
+                <span>☁️</span> Generate Real Choir Stems (ACE-Step Cloud)
+              </>
+            )}
           </button>
         </div>
 
