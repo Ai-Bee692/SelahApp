@@ -30,6 +30,7 @@ yarn-error.log*
 .env
 
 # python cache
+**/venv/
 __pycache__/
 *.pyc
 
