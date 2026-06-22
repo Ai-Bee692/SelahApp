@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Head from "next/head";
 import { C, MOCK_SONGS } from "../data/constants";
 import { GeneratingModal } from "../components/GeneratingModal";
@@ -6,20 +6,72 @@ import { Player } from "../components/Player";
 import { HomeTab } from "../components/tabs/HomeTab";
 import { CreateTab } from "../components/tabs/CreateTab";
 import { LibraryTab } from "../components/tabs/LibraryTab";
+import { useGospelAudio } from "../lib/useGospelAudio";
+import { getAllSongs, saveSong } from "../lib/indexedDb";
 
 export default function SelahApp() {
   const [tab, setTab] = useState("home");
   const [songs, setSongs] = useState(MOCK_SONGS);
   const [activeSong, setActiveSong] = useState(null);
   const [generating, setGenerating] = useState(false);
+  const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
 
-  const handleGenerate = async ({ theme, musicKey, langs, genre, harmony, scripture }) => {
+  const chords = activeSong?.chords && activeSong.chords.length > 0 ? activeSong.chords : ["C", "F", "G", "Am"];
+  const genre = activeSong?.genre || "Contemporary";
+
+  // Persistent audio state managed at layout level
+  const audioState = useGospelAudio(chords, genre);
+  const { isPlaying, currentChordIdx, bpm, setBpm, play, pause, stop } = audioState;
+
+  useEffect(() => {
+    // Register Service Worker
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then((reg) => console.log("Service Worker registered with scope:", reg.scope))
+        .catch((err) => console.error("Service Worker registration failed:", err));
+    }
+
+    // Monitor connectivity status
+    setIsOffline(!navigator.onLine);
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    // Sync state with IndexedDB cached songs
+    const loadIndexedDbSongs = async () => {
+      try {
+        const dbSongs = await getAllSongs();
+        if (dbSongs && dbSongs.length > 0) {
+          setSongs((prev) => {
+            const existingIds = new Set(prev.map((s) => s.id));
+            const uniqueDbSongs = dbSongs.filter((s) => !existingIds.has(s.id));
+            return [...uniqueDbSongs, ...prev];
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load cached songs from IndexedDB:", err);
+      }
+    };
+    loadIndexedDbSongs();
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  // Auto-play new songs when generated
+  const handleGenerate = async ({ theme, musicKey, langs, genre: selectedGenre, harmony, scripture, rawSongText }) => {
     setGenerating(true);
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ theme, musicKey, langs, genre, harmony, scripture }),
+        body: JSON.stringify({ theme, musicKey, langs, genre: selectedGenre, harmony, scripture, rawSongText }),
       });
       
       const data = await res.json();
@@ -27,17 +79,29 @@ export default function SelahApp() {
       const newSong = {
         id: Date.now(),
         title: data.title || `New ${theme} Song`,
-        genre,
+        genre: selectedGenre,
         musicKey,
         lang: langs.join(" + "),
         theme,
         scripture: data.scripture || scripture || `Auto-matched for "${theme}"`,
         lyrics: data.lyrics || [],
-        chords: data.chords || []
+        chords: data.chords || [],
+        created_at: Date.now(),
       };
       
+      try {
+        await saveSong(newSong);
+      } catch (dbErr) {
+        console.error("Failed to cache new song locally:", dbErr);
+      }
+      
       setSongs((prev) => [newSong, ...prev]);
+      stop();
       setActiveSong(newSong);
+      // Wait a moment for state to update, then play
+      setTimeout(() => {
+        setIsPlayerExpanded(true);
+      }, 300);
     } catch (err) {
       console.error(err);
       alert("Error generating song. Try again.");
@@ -46,121 +110,307 @@ export default function SelahApp() {
     }
   };
 
-  if (activeSong) {
-    return (
-      <div
-        style={{
-          fontFamily: "'Segoe UI', system-ui, sans-serif",
-          background: C.bg,
-          minHeight: "100vh",
-          maxWidth: 420,
-          margin: "0 auto",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <Head>
-          <title>Selah Player</title>
-        </Head>
-        <Player song={activeSong} onClose={() => setActiveSong(null)} />
-      </div>
-    );
-  }
+  const handleUpdateSong = async (updatedSong) => {
+    setSongs((prev) => prev.map((s) => (s.id === updatedSong.id ? updatedSong : s)));
+    if (activeSong && activeSong.id === updatedSong.id) {
+      setActiveSong(updatedSong);
+    }
+    try {
+      await saveSong(updatedSong);
+    } catch (dbErr) {
+      console.error("Failed to persist updated song locally:", dbErr);
+    }
+  };
 
-  const tabs = [
-    { id: "home", icon: "🏠", label: "Home" },
-    { id: "create", icon: "✚", label: "Create" },
-    { id: "library", icon: "📚", label: "Library" },
-  ];
+  const handleSongSelect = (song) => {
+    stop();
+    setActiveSong(song);
+    // Auto-open expanded view for focus rehearsal
+    setIsPlayerExpanded(true);
+  };
 
   return (
-    <div
-      style={{
-        fontFamily: "'Segoe UI', system-ui, sans-serif",
-        background: C.bg,
-        minHeight: "100vh",
-        maxWidth: 420,
-        margin: "0 auto",
-        display: "flex",
-        flexDirection: "column",
-        position: "relative",
-      }}
-    >
+    <div className="bg-suno-black text-white selection:bg-suno-accent/30 min-h-screen overflow-x-hidden font-sans">
       <Head>
-        <title>Selah App</title>
+        <title>SelahAI | Gospel Music Co-Writer</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
       <GeneratingModal visible={generating} />
 
-      {/* Top Bar */}
-      <div
-        style={{
-          padding: "14px 20px 10px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          borderBottom: `1px solid ${C.border}`,
-        }}
-      >
-        <div style={{ color: C.green, fontWeight: 900, fontSize: 24, letterSpacing: 1 }}>
-          SELAH
+      {/* Sidebar Navigation Shell (Hidden on Mobile) */}
+      <aside className="fixed left-0 top-0 h-full w-64 bg-suno-gray-900 border-r border-suno-gray-800 flex flex-col p-6 space-y-4 z-50 hidden md:flex">
+        <div className="flex flex-col items-center mb-8 border-b border-suno-gray-800 pb-6">
+          <div className="w-24 h-24 rounded-2xl overflow-hidden bg-suno-gray-900 border border-suno-gray-800 flex items-center justify-center shadow-lg mb-3">
+            <img src="/logo.png" alt="Selah Logo" className="w-full h-full object-cover" />
+          </div>
+          <div className="text-center mt-2">
+            <h1 className="font-serif text-2xl text-white tracking-[0.25em] uppercase font-medium">Selah</h1>
+            <p className="text-[9px] uppercase tracking-[0.2em] text-gray-400 font-semibold mt-1">Gospel Music App</p>
+            {/* Offline status badge */}
+            <div className="mt-3 flex items-center justify-center gap-1.5 bg-suno-gray-950 px-3 py-1 rounded-full border border-suno-gray-800 w-fit mx-auto">
+              <span className={`w-2 h-2 rounded-full ${isOffline ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`}></span>
+              <span className="text-[9px] uppercase font-bold text-gray-400">{isOffline ? "Offline Mode" : "Online Mode"}</span>
+            </div>
+          </div>
         </div>
-        <div style={{ color: C.muted, fontSize: 11, fontStyle: "italic" }}>
-          Pause. Reflect. Worship.
-        </div>
-      </div>
 
-      {/* Main Content */}
-      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
-        {tab === "home" && (
-          <HomeTab songs={songs} onPlay={setActiveSong} />
-        )}
-        {tab === "create" && <CreateTab onGenerate={handleGenerate} />}
-        {tab === "library" && (
-          <LibraryTab songs={songs} onPlay={setActiveSong} />
-        )}
-      </div>
-
-      {/* Bottom Nav */}
-      <div
-        style={{
-          display: "flex",
-          borderTop: `1px solid ${C.border}`,
-          background: C.surface,
-          padding: "8px 0 4px",
-        }}
-      >
-        {tabs.map((t) => (
+        <nav className="flex-1 space-y-1">
           <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            style={{
-              flex: 1,
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 2,
-              padding: "6px 0",
-            }}
+            onClick={() => setTab("home")}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300 font-medium ${
+              tab === "home" ? "bg-suno-gray-800 text-white" : "text-gray-400 hover:text-white hover:bg-suno-gray-800/50"
+            }`}
           >
-            <span style={{ fontSize: t.id === "create" ? 22 : 18 }}>{t.icon}</span>
-            <span
-              style={{
-                fontSize: 10,
-                color: tab === t.id ? C.green : C.muted,
-                fontWeight: tab === t.id ? 700 : 400,
-                fontFamily: "inherit",
-              }}
-            >
-              {t.label}
-            </span>
+            <span className={`material-symbols-outlined text-xl ${tab === "home" ? "text-suno-accent" : ""}`}>explore</span>
+            <span className="text-sm">Discover</span>
           </button>
-        ))}
-      </div>
+          <button
+            onClick={() => setTab("create")}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300 font-medium ${
+              tab === "create" ? "bg-suno-gray-800 text-white" : "text-gray-400 hover:text-white hover:bg-suno-gray-800/50"
+            }`}
+          >
+            <span className={`material-symbols-outlined text-xl ${tab === "create" ? "text-suno-accent" : ""}`}>add_circle</span>
+            <span className="text-sm">Create Studio</span>
+          </button>
+          <button
+            onClick={() => setTab("library")}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300 font-medium ${
+              tab === "library" ? "bg-suno-gray-800 text-white" : "text-gray-400 hover:text-white hover:bg-suno-gray-800/50"
+            }`}
+          >
+            <span className={`material-symbols-outlined text-xl ${tab === "library" ? "text-suno-accent" : ""}`}>library_music</span>
+            <span className="text-sm">Library</span>
+          </button>
+        </nav>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className={`md:ml-64 ${activeSong ? "pb-44" : "pb-24"} min-h-screen transition-all duration-300`}>
+        {/* Mobile Top Navbar */}
+        <header className="h-16 border-b border-suno-gray-800 flex items-center justify-between px-6 bg-suno-black/85 backdrop-blur-md sticky top-0 z-40 md:hidden">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg overflow-hidden bg-suno-gray-950 border border-suno-gray-800 flex items-center justify-center shadow-md">
+              <img src="/logo.png" alt="Selah Logo" className="w-full h-full object-cover" />
+            </div>
+            <h1 className="font-serif text-base text-white tracking-[0.15em] uppercase font-normal mt-0.5">Selah</h1>
+            <span className={`w-2 h-2 rounded-full ${isOffline ? "bg-red-500" : "bg-emerald-500 animate-pulse"} ml-1.5`} title={isOffline ? "Offline Mode" : "Online Mode"}></span>
+          </div>
+          <button 
+            onClick={() => setMenuOpen(true)}
+            className="p-2 text-gray-400 hover:text-white transition-colors active:scale-90"
+            title="Open Navigation Menu"
+          >
+            <span className="material-symbols-outlined text-2xl">menu</span>
+          </button>
+        </header>
+
+        {/* Top Header Anchor */}
+        <header className="h-20 border-b border-suno-gray-800 flex items-center justify-between px-8 bg-suno-black/80 backdrop-blur-md sticky top-0 z-40 hidden md:flex">
+          <div className="flex items-center gap-6">
+            <div className="relative w-96">
+              <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">search</span>
+              <input
+                className="w-full bg-suno-gray-900 border border-suno-gray-800 rounded-full pl-12 pr-6 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-suno-accent focus:border-suno-accent text-white placeholder:text-gray-500 transition-all"
+                placeholder="Search for songs, themes, scriptures..."
+                type="text"
+                disabled
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-6 text-gray-400">
+          </div>
+        </header>
+
+        {/* Dynamic Tab Render */}
+        <div className="px-4 md:px-8 pt-6">
+          {tab === "home" && <HomeTab songs={songs} onPlay={handleSongSelect} onCreateFirst={() => setTab("create")} />}
+          {tab === "create" && <CreateTab onGenerate={handleGenerate} />}
+          {tab === "library" && <LibraryTab songs={songs} onPlay={handleSongSelect} />}
+        </div>
+      </main>
+
+      {/* Persistent Player Bar */}
+      {activeSong && (
+        <footer className="fixed bottom-0 left-0 w-full bg-suno-gray-900 border-t border-suno-gray-800 z-[60] flex items-center px-4 md:px-8 shadow-[0_-8px_30px_rgb(0,0,0,0.5)] justify-between" style={{ height: "5rem", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+          {/* Song Info */}
+          <div className="flex items-center gap-3 w-1/3 md:w-1/4 min-w-0">
+            <div
+              onClick={() => setIsPlayerExpanded(true)}
+              className="w-12 h-12 md:w-14 md:h-14 rounded-lg bg-suno-gray-800 overflow-hidden flex-shrink-0 shadow-lg border border-suno-gray-700 cursor-pointer group relative"
+            >
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <span className="material-symbols-outlined text-white text-lg">open_in_full</span>
+              </div>
+              <div className="w-full h-full bg-suno-gray-900 flex items-center justify-center">
+                <img src="/logo.png" alt="Selah Logo" className="w-full h-full object-cover" />
+              </div>
+            </div>
+            <div className="truncate cursor-pointer min-w-0" onClick={() => setIsPlayerExpanded(true)}>
+              <h5 className="text-sm font-bold text-white truncate leading-tight">{activeSong.title}</h5>
+              <p className="text-xs text-gray-400 truncate leading-tight">{activeSong.genre} · Key of {activeSong.musicKey || chords[0]}</p>
+            </div>
+          </div>
+
+          {/* Center Controls */}
+          <div className="flex-1 flex flex-col items-center min-w-0 px-3 md:px-4">
+            <div className="flex items-center gap-4 md:gap-6 mb-1.5">
+              <button
+                onClick={stop}
+                className="text-gray-400 hover:text-white transition-colors"
+                title="Stop"
+              >
+                <span className="material-symbols-outlined text-xl">stop</span>
+              </button>
+              <button
+                onClick={() => (isPlaying ? pause() : play())}
+                className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-lg"
+                title={isPlaying ? "Pause" : "Play"}
+              >
+                <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  {isPlaying ? "pause" : "play_arrow"}
+                </span>
+              </button>
+              <button
+                onClick={() => setIsPlayerExpanded(true)}
+                className="text-gray-400 hover:text-white transition-colors"
+                title="Open Choir Desk"
+              >
+                <span className="material-symbols-outlined text-xl">equalizer</span>
+              </button>
+            </div>
+            {/* Live Chord Progress Indicator */}
+            <div className="w-full flex items-center gap-2 overflow-hidden">
+              <span className="text-[9px] font-mono text-gray-500 shrink-0">Chords:</span>
+              <div className="flex gap-1 overflow-hidden min-w-0">
+                {chords.slice(0, 8).map((chord, idx) => {
+                  const isActive = isPlaying && currentChordIdx === idx;
+                  return (
+                    <span
+                      key={idx}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono border shrink-0 transition-all ${
+                        isActive
+                          ? "bg-suno-accent/20 text-suno-accent border-suno-accent/40 font-bold scale-105"
+                          : "bg-suno-gray-800 text-gray-400 border-transparent"
+                      }`}
+                    >
+                      {chord}
+                    </span>
+                  );
+                })}
+                {chords.length > 8 && (
+                  <span className="text-[9px] text-gray-600 font-mono self-center shrink-0">
+                    +{chords.length - 8}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] font-mono text-suno-accent font-bold ml-auto shrink-0">{bpm}</span>
+            </div>
+          </div>
+
+          {/* Right: Choir Desk CTA — desktop only */}
+          <div className="hidden md:flex items-center justify-end w-1/4 shrink-0">
+            <button
+              onClick={() => setIsPlayerExpanded(true)}
+              className="px-4 py-2 bg-suno-accent/10 hover:bg-suno-accent/20 text-suno-accent text-xs font-bold rounded-full border border-suno-accent/20 flex items-center gap-1.5 transition-all"
+            >
+              <span className="material-symbols-outlined text-[15px]">equalizer</span>
+              Choir Desk
+            </button>
+          </div>
+        </footer>
+      )}
+
+      {/* Mobile Bottom Navigation Shell */}
+      <nav className={`md:hidden fixed ${activeSong ? "bottom-24" : "bottom-0"} left-0 w-full bg-suno-gray-900 border-t border-suno-gray-800 flex justify-around items-center h-20 px-4 pb-safe z-50 rounded-t-xl shadow-[0_-8px_30px_rgb(0,0,0,0.5)] transition-all duration-300`}>
+        <button
+          onClick={() => setTab("home")}
+          className={`flex flex-col items-center active:scale-90 transition-transform ${tab === "home" ? "text-suno-accent" : "text-gray-400"}`}
+        >
+          <span className="material-symbols-outlined">explore</span>
+          <span className="text-[10px] font-bold mt-1">Discover</span>
+        </button>
+        <button
+          onClick={() => setTab("create")}
+          className={`flex flex-col items-center active:scale-90 transition-transform ${tab === "create" ? "text-suno-accent" : "text-gray-400"}`}
+        >
+          <span className="material-symbols-outlined">add_circle</span>
+          <span className="text-[10px] font-bold mt-1">Create</span>
+        </button>
+        <button
+          onClick={() => setTab("library")}
+          className={`flex flex-col items-center active:scale-90 transition-transform ${tab === "library" ? "text-suno-accent" : "text-gray-400"}`}
+        >
+          <span className="material-symbols-outlined">library_music</span>
+          <span className="text-[10px] font-bold mt-1">Library</span>
+        </button>
+      </nav>
+
+      {/* Expanded Player overlay */}
+      {isPlayerExpanded && activeSong && (
+        <div className="fixed inset-0 bg-suno-black/95 backdrop-blur-2xl z-[100] overflow-y-auto">
+          <Player 
+            song={activeSong} 
+            audioState={audioState} 
+            onClose={() => setIsPlayerExpanded(false)} 
+            onUpdateSong={handleUpdateSong}
+          />
+        </div>
+      )}
+
+      {/* Full-Screen Drawer Menu (Hamburger Overlay) */}
+      {menuOpen && (
+        <div className="fixed inset-0 bg-suno-black/95 backdrop-blur-2xl z-[150] flex flex-col items-center justify-center space-y-8 animate-fadeIn">
+          <button 
+            onClick={() => setMenuOpen(false)}
+            className="absolute top-6 right-6 p-2.5 text-gray-400 hover:text-white transition-colors"
+            title="Close Menu"
+          >
+            <span className="material-symbols-outlined text-2xl">close</span>
+          </button>
+          <div className="flex flex-col items-center mb-4">
+            <div className="w-20 h-20 rounded-2xl overflow-hidden bg-suno-gray-950 border border-suno-gray-800 flex items-center justify-center shadow-lg mb-3">
+              <img src="/logo.png" alt="Selah Logo" className="w-full h-full object-cover" />
+            </div>
+            <h1 className="font-serif text-2xl text-white tracking-[0.25em] uppercase font-medium">Selah</h1>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-semibold mt-1">Gospel Music App</p>
+          </div>
+          <nav className="flex flex-col items-center space-y-6">
+            <button
+              onClick={() => { setTab("home"); setMenuOpen(false); }}
+              className={`text-xl font-medium transition-colors ${tab === "home" ? "text-suno-accent" : "text-gray-400 hover:text-white"}`}
+            >
+              Discover
+            </button>
+            <button
+              onClick={() => { setTab("create"); setMenuOpen(false); }}
+              className={`text-xl font-medium transition-colors ${tab === "create" ? "text-suno-accent" : "text-gray-400 hover:text-white"}`}
+            >
+              Create Studio
+            </button>
+            <button
+              onClick={() => { setTab("library"); setMenuOpen(false); }}
+              className={`text-xl font-medium transition-colors ${tab === "library" ? "text-suno-accent" : "text-gray-400 hover:text-white"}`}
+            >
+              Library
+            </button>
+            <div className="w-16 h-[1px] bg-suno-gray-800"></div>
+            <button
+              onClick={() => { setTab("home"); setMenuOpen(false); }}
+              className="text-base text-gray-500 hover:text-white transition-colors"
+            >
+              About
+            </button>
+            <button
+              onClick={() => { setTab("home"); setMenuOpen(false); }}
+              className="text-base text-gray-500 hover:text-white transition-colors"
+            >
+              Contact
+            </button>
+          </nav>
+        </div>
+      )}
     </div>
   );
 }
