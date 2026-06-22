@@ -1,33 +1,4 @@
-import { useRef, useEffect } from "react";
-
-export const StemRow = ({ label, color, vol, setVol, solo, setSolo, muted, setMuted, url, isPlaying }) => {
-  const audioRef = useRef(null);
-
-  // Sync playback with URL load
-  useEffect(() => {
-    if (url && !audioRef.current) {
-      audioRef.current = new Audio(url);
-      audioRef.current.loop = true;
-    }
-  }, [url]);
-
-  // Sync global playback
-  useEffect(() => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.play().catch((e) => console.log("Audio play error:", e));
-    } else {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-  }, [isPlaying]);
-
-  // Sync volume and mute
-  useEffect(() => {
-    if (!audioRef.current) return;
-    audioRef.current.volume = muted ? 0 : (vol / 100);
-  }, [vol, muted]);
-
+export const StemRow = ({ label, color, vol, setVol, solo, setSolo, muted, setMuted, url }) => {
   return (
     <div
       className={`flex items-center gap-3 p-3.5 rounded-2xl border transition-all duration-300 ${
@@ -49,7 +20,7 @@ export const StemRow = ({ label, color, vol, setVol, solo, setSolo, muted, setMu
       <div className="flex-1 min-w-0 font-sans">
         <p className="text-xs font-bold text-white truncate">{label}</p>
         <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">
-          {url ? "Synthesizer Ready" : "Local Synthesis"}
+          {url ? "Synthesizer Ready" : "Inactive / Silent"}
         </p>
       </div>
 
