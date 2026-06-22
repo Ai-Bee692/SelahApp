@@ -38,3 +38,5 @@ __pycache__/
 backend/outputs/
 backend/test_output/
 test_output/
+/public/stems/
+/pics

@@ -16,7 +16,80 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method Not Allowed" });
   }
 
-  const { chords, genre, musicKey, barsPerChord } = req.body;
+  const { chords, genre, musicKey, barsPerChord, input_audio, bpm } = req.body;
+
+  if (input_audio) {
+    if (!process.env.REPLICATE_API_TOKEN) {
+      return res.status(400).json({
+        error: "no_replicate_token",
+        message: "Replicate API token is missing on the server environment. Please set REPLICATE_API_TOKEN in .env.local to enable cloud AI backing tracks."
+      });
+    }
+
+    try {
+      const response = await fetch("https://api.replicate.com/v1/predictions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Token ${process.env.REPLICATE_API_TOKEN}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          version: "671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
+          input: {
+            model_version: "stereo-melody-large",
+            prompt: `dynamic gospel track with professional piano, drums, bass, high-fidelity, tempo ${bpm || 72} BPM, style of ${genre || "Contemporary"}`,
+            input_audio: input_audio,
+            duration: 14,
+            continuation: false
+          }
+        })
+      });
+
+      let prediction = await response.json();
+      if (!response.ok || prediction.error) {
+        throw new Error(prediction.error || "Failed to initiate Replicate prediction");
+      }
+
+      const getUrl = prediction.urls.get;
+      let attempts = 0;
+      const maxAttempts = 25;
+      while (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        attempts++;
+
+        const pollRes = await fetch(getUrl, {
+          headers: {
+            "Authorization": `Token ${process.env.REPLICATE_API_TOKEN}`
+          }
+        });
+        if (!pollRes.ok) {
+          throw new Error(`Polling failed: HTTP ${pollRes.status}`);
+        }
+        prediction = await pollRes.json();
+        if (prediction.status === "succeeded") {
+          break;
+        }
+        if (prediction.status === "failed" || prediction.status === "canceled") {
+          throw new Error(`Replicate generation failed/canceled: ${prediction.error || "unknown"}`);
+        }
+      }
+
+      if (prediction.status !== "succeeded") {
+        throw new Error("Prediction timed out on Replicate.");
+      }
+
+      return res.status(200).json({
+        backing_url: prediction.output
+      });
+
+    } catch (err) {
+      console.error("[Melody Cloud] Replicate generation error:", err.message);
+      return res.status(500).json({
+        error: "replicate_failed",
+        message: `Cloud AI generation failed: ${err.message}`
+      });
+    }
+  }
 
   const resolvedChords = Array.isArray(chords) && chords.length > 0
     ? chords
